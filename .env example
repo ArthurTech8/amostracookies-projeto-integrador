@@ -1,4 +1,0 @@
-DATABASE_URL=postgresql://USUARIO:SENHA@postgresql-arthurpires.alwaysdata.net:5432/arthurpires_banco_doce_gestao
-DB_SSL=true
-JWT_SECRET=troque-por-um-valor-longo-e-aleatorio
-PORT=3000
