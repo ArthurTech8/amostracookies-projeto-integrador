@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { Bell, Menu, X, CakeSlice } from 'lucide-vue-next'
+import { computed, onMounted, ref, watch } from 'vue'
+import { Menu, X, CakeSlice, LogOut } from 'lucide-vue-next'
+import Login from './components/Login.vue'
+import NoticeHost from './components/NoticeHost.vue'
 import Sidebar from './components/Sidebar.vue'
 import Dashboard from './components/Dashboard.vue'
 import Products from './components/Products.vue'
@@ -11,11 +13,26 @@ import Reports from './components/Reports.vue'
 import type { Product, Section } from './types'
 import { todayISO } from './utils/format'
 import { useConfectioneryStore } from './stores/confectionery'
+import { useAuthStore } from './stores/auth'
 
 const current = ref<Section>('dashboard')
 const editingProduct = ref<Product | null>(null)
 const mobileMenu = ref(false)
 const store = useConfectioneryStore()
+const auth = useAuthStore()
+
+onMounted(() => auth.init())
+
+// Ao entrar, busca os produtos da empresa; ao sair, limpa tudo da sessão anterior.
+watch(() => auth.isAuthenticated, authenticated => {
+  if (authenticated) {
+    store.loadProducts()
+  } else {
+    store.resetProducts()
+    current.value = 'dashboard'
+    editingProduct.value = null
+  }
+})
 const pageTitle = computed(() => ({
   dashboard: 'Visão geral',
   products: 'Produtos e estoque',
@@ -36,14 +53,17 @@ function editProduct(product: Product | null) {
 </script>
 
 <template>
-  <div class="app-layout">
+  <NoticeHost />
+  <div v-if="auth.status === 'checking'" class="login-page"><p class="muted">Carregando...</p></div>
+  <Login v-else-if="!auth.isAuthenticated" />
+  <div v-else class="app-layout">
     <div v-if="mobileMenu" class="mobile-overlay" @click="mobileMenu = false"></div>
     <div class="sidebar-wrap" :class="{ open: mobileMenu }"><Sidebar :current="current" @navigate="navigate" /></div>
     <main class="main-area">
       <header class="topbar">
         <button class="mobile-menu-btn" aria-label="Abrir menu" @click="mobileMenu = !mobileMenu"><X v-if="mobileMenu" /><Menu v-else /></button>
         <div class="breadcrumb"><span>Doce Gestão</span><span class="crumb-divider">/</span><strong>{{ pageTitle }}</strong></div>
-        <div class="topbar-right"><span class="today-label">{{ todayISO().split('-').reverse().join('/') }}</span><div class="topbar-avatar"><CakeSlice :size="18" /></div></div>
+        <div class="topbar-right"><span class="today-label">{{ todayISO().split('-').reverse().join('/') }}</span><div class="topbar-user"><strong>{{ auth.user?.name }}</strong><small>{{ auth.user?.company?.name }}</small></div><div class="topbar-avatar"><CakeSlice :size="18" /></div><button class="icon-btn" title="Sair" aria-label="Sair" @click="auth.logout()"><LogOut :size="16" /></button></div>
       </header>
       <div class="content-area">
         <Dashboard v-if="current === 'dashboard'" />
