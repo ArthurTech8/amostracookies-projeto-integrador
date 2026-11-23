@@ -7,6 +7,7 @@ import { buildTypeOrmOptions } from './database/typeorm-options';
 import { AuthModule } from './modules/auth/auth.module';
 import { CompaniesModule } from './modules/companies/companies.module';
 import { ProductsModule } from './modules/products/products.module';
+import { SalesModule } from './modules/sales/sales.module';
 import { UsersModule } from './modules/users/users.module';
 
 @Module({
@@ -24,6 +25,7 @@ import { UsersModule } from './modules/users/users.module';
     CompaniesModule,
     UsersModule,
     ProductsModule,
+    SalesModule,
   ],
 })
 export class AppModule {}
