@@ -6,6 +6,7 @@ import { validateEnv, type Env } from './config/env.validation';
 import { buildTypeOrmOptions } from './database/typeorm-options';
 import { AuthModule } from './modules/auth/auth.module';
 import { CompaniesModule } from './modules/companies/companies.module';
+import { ProductsModule } from './modules/products/products.module';
 import { UsersModule } from './modules/users/users.module';
 
 @Module({
@@ -22,6 +23,7 @@ import { UsersModule } from './modules/users/users.module';
     AuthModule,
     CompaniesModule,
     UsersModule,
+    ProductsModule,
   ],
 })
 export class AppModule {}
