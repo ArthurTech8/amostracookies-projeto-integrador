@@ -128,6 +128,8 @@ Acesse `http://localhost:5173` e entre com o **código da empresa**, o usuário 
 
 O que já usa a API: login e **Produtos e estoque** (cadastro, edição, desativação e entrada de estoque). **Vendas** e **Despesas** ainda ficam no navegador. Até Vendas migrar, uma venda baixa o estoque só na tela, e ao recarregar a página volta o valor do banco.
 
+A API de vendas já existe (`GET/POST /api/sales`, `GET/DELETE /api/sales/:id`, veja no Swagger), mas a tela de Vendas ainda não a usa.
+
 Se a API não estiver em `http://localhost:3000/api`, crie `doce-gestao/.env` a partir de `doce-gestao/.env.example` e ajuste `VITE_API_URL`.
 
 ## Scripts disponíveis

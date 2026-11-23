@@ -3,9 +3,11 @@ import type { DataSourceOptions } from 'typeorm';
 import type { Env } from '../config/env.validation';
 import { Company } from '../modules/companies/entities/company.entity';
 import { Product } from '../modules/products/entities/product.entity';
+import { SaleItem } from '../modules/sales/entities/sale-item.entity';
+import { Sale } from '../modules/sales/entities/sale.entity';
 import { User } from '../modules/users/entities/user.entity';
 
-export const ENTITIES = [Company, User, Product];
+export const ENTITIES = [Company, User, Product, Sale, SaleItem];
 
 /** Opções do TypeORM compartilhadas pela aplicação, pelo CLI de migrations e pelos seeds. */
 export function buildTypeOrmOptions(env: Pick<Env, 'DATABASE_URL' | 'DB_SSL'>): DataSourceOptions {
