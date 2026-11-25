@@ -9,6 +9,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import type { ModulePermissions } from '../../../common/decorators/module-access.decorator';
 import { Company } from '../../companies/entities/company.entity';
 import { UserRole } from './user-role.enum';
 
@@ -49,6 +50,10 @@ export class User {
 
   @Column({ type: 'boolean', default: true })
   active!: boolean;
+
+  /** Permissões de colaboradores, sempre restritas à empresa do usuário. */
+  @Column({ type: 'jsonb', default: () => "'{}'::jsonb" })
+  permissions!: ModulePermissions;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt!: Date;

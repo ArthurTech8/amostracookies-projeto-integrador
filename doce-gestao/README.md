@@ -58,3 +58,21 @@ O estoque inicial do cupcake é **zero**, pois a quantidade disponível não foi
 - Para não perder os dados, evite limpar os dados do site/navegador. Não há sincronização entre computadores.
 - O lucro líquido é estimado com base no custo cadastrado de cada produto vendido e nas despesas lançadas no período. Impostos, taxas de cartão, pró-labore e outros custos devem ser cadastrados como despesas quando aplicáveis.
 - As despesas iniciais são cadastradas com a data da primeira abertura do sistema. Para relatórios de meses anteriores, ajuste as datas dos lançamentos conforme necessário.
+
+## Login e permissões por empresa
+
+Defina `VITE_TENANT_BASE_DOMAIN=exemplo.test` para que o endereço
+`amostra-cookies.exemplo.test` use `amostra-cookies` como código da empresa.
+Sem um subdomínio reconhecido, informe o código manualmente. Se o frontend
+e a API usarem origens diferentes, inclua a origem do frontend no
+`CORS_ORIGIN` do backend.
+
+Use um banco de desenvolvimento com as migrations aplicadas. Entre como
+administrador da empresa para acessar **Equipe e acessos**. Funcionários
+podem pedir acesso a módulos bloqueados. A aprovação concede operação
+no módulo. A gerência também pode conceder somente visualização.
+
+O painel registra vendas e despesas por autor e mostra novos registros de
+cadastro e estoque após a migration. Registros antigos do navegador não
+são importados automaticamente porque não possuem vínculo verificável com
+uma empresa.

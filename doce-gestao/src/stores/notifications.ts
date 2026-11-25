@@ -9,9 +9,7 @@ export interface Notice {
   message: string
 }
 
-const DURATION_MS = 4000
-
-/** Avisos rápidos exibidos no canto da tela (substituem o `alert()`). */
+/** Mantém os avisos em fila até o fechamento de cada modal. */
 export const useNotificationsStore = defineStore('notifications', () => {
   const notices = ref<Notice[]>([])
   let nextId = 1
@@ -23,7 +21,6 @@ export const useNotificationsStore = defineStore('notifications', () => {
   function push(kind: NoticeKind, message: string) {
     const id = nextId++
     notices.value.push({ id, kind, message })
-    setTimeout(() => dismiss(id), DURATION_MS)
   }
 
   return {

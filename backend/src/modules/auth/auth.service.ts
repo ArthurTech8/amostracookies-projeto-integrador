@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { hashSync } from 'bcryptjs';
 import { IsNull, Repository } from 'typeorm';
+import type { ModulePermissions } from '../../common/decorators/module-access.decorator';
 import type { AuthUser, JwtPayload } from '../../common/types/auth-user';
 import { verifyPassword } from '../../common/utils/password';
 import { UserRole } from '../users/entities/user-role.enum';
@@ -22,6 +23,7 @@ export interface AuthProfile {
   name: string;
   username: string;
   role: UserRole;
+  permissions?: ModulePermissions;
   company: { id: string; name: string; slug: string } | null;
 }
 
@@ -36,6 +38,7 @@ function toAuthProfile(user: User): AuthProfile {
     name: user.name,
     username: user.username,
     role: user.role,
+    permissions: user.permissions,
     company: user.company
       ? { id: user.company.id, name: user.company.name, slug: user.company.slug }
       : null,
@@ -67,6 +70,7 @@ export class AuthService {
         username: true,
         passwordHash: true,
         role: true,
+        permissions: true,
         active: true,
         company: { id: true, name: true, slug: true, active: true },
       },

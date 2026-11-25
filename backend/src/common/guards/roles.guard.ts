@@ -1,6 +1,7 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import type { UserRole } from '../../modules/users/entities/user-role.enum';
+import { UserRole } from '../../modules/users/entities/user-role.enum';
+import { MODULE_ACCESS_KEY, type ModuleRule } from '../decorators/module-access.decorator';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 import type { AuthenticatedRequest } from '../types/auth-user';
 
@@ -14,11 +15,21 @@ export class RolesGuard implements CanActivate {
       context.getHandler(),
       context.getClass(),
     ]);
-    if (!roles || roles.length === 0) return true;
-
+    const rule = this.reflector.getAllAndOverride<ModuleRule | undefined>(MODULE_ACCESS_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
     const { user } = context.switchToHttp().getRequest<AuthenticatedRequest>();
-    if (!user || !roles.includes(user.role)) {
+    if (roles?.length && (!user || !roles.includes(user.role))) {
       throw new ForbiddenException('Você não tem permissão para esta ação.');
+    }
+    // Avalia a permissão atual do usuário a cada chamada, inclusive com um token antigo.
+    if (rule && user?.role !== UserRole.Admin) {
+      const allowed = rule.modules.some((module) => {
+        const level = user?.permissions?.[module];
+        return level === 'operate' || (level === 'view' && rule.level === 'view');
+      });
+      if (!allowed) throw new ForbiddenException('Você não tem acesso a este módulo.');
     }
     return true;
   }

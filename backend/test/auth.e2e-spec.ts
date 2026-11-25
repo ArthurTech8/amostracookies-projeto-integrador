@@ -7,6 +7,10 @@ import request from 'supertest';
 import type { App } from 'supertest/types';
 import { setupApp } from '../src/app.setup';
 import { validateEnv } from '../src/config/env.validation';
+import { AccessController } from '../src/modules/access/access.controller';
+import { AccessService } from '../src/modules/access/access.service';
+import { ExpensesController } from '../src/modules/expenses/expenses.controller';
+import { ExpensesService } from '../src/modules/expenses/expenses.service';
 import { AuthModule } from '../src/modules/auth/auth.module';
 import { Company } from '../src/modules/companies/entities/company.entity';
 import { UserRole } from '../src/modules/users/entities/user-role.enum';
@@ -38,6 +42,8 @@ interface LoginBody {
 
 describe('Autenticação e isolamento por empresa (e2e)', () => {
   let app: INestApplication<App>;
+  const access = { request: jest.fn().mockResolvedValue(undefined), list: jest.fn().mockResolvedValue([]) };
+  const expenses = { list: jest.fn().mockResolvedValue([]), create: jest.fn() };
   const empresaA = company('11111111-1111-4111-8111-111111111111', 'empresa-a');
   const empresaB = company('22222222-2222-4222-8222-222222222222', 'empresa-b');
 
@@ -66,6 +72,7 @@ describe('Autenticação e isolamento por empresa (e2e)', () => {
         name: 'Bia A',
         username: 'bia',
         role: UserRole.Staff,
+        permissions: { expenses: 'view' },
       }),
       user({
         id: 'aaaaaaaa-0000-4000-8000-000000000004',
@@ -90,6 +97,11 @@ describe('Autenticação e isolamento por empresa (e2e)', () => {
         }),
         AuthModule,
         UsersModule,
+      ],
+      controllers: [AccessController, ExpensesController],
+      providers: [
+        { provide: AccessService, useValue: access },
+        { provide: ExpensesService, useValue: expenses },
       ],
     })
       .overrideProvider(getRepositoryToken(User))
@@ -191,6 +203,32 @@ describe('Autenticação e isolamento por empresa (e2e)', () => {
       .set('Authorization', `Bearer ${accessToken}`)
       .send({ name: 'Hackeada' })
       .expect(404);
+  });
+
+  it('permite visualizar despesas e bloqueia operação sem a permissão correspondente', async () => {
+    const { accessToken } = await login({ companySlug: 'empresa-a', username: 'bia', password: PASSWORD });
+    const authorization = 'Bearer ' + accessToken;
+
+    await request(app.getHttpServer()).get('/api/expenses').set('Authorization', authorization).expect(200);
+    await request(app.getHttpServer()).post('/api/expenses').set('Authorization', authorization).send({}).expect(403);
+
+    expect(expenses.list).toHaveBeenCalledWith(empresaA.id);
+    expect(expenses.create).not.toHaveBeenCalled();
+  });
+
+  it('aceita pedido de acesso do funcionário e restringe a fila à gerência', async () => {
+    const employee = await login({ companySlug: 'empresa-a', username: 'bia', password: PASSWORD });
+    const admin = await login({ companySlug: 'empresa-a', username: 'ana', password: PASSWORD });
+
+    await request(app.getHttpServer()).post('/api/access/requests')
+      .set('Authorization', 'Bearer ' + employee.accessToken).send({ module: 'sales' }).expect(204);
+    await request(app.getHttpServer()).get('/api/access/requests')
+      .set('Authorization', 'Bearer ' + employee.accessToken).expect(403);
+    await request(app.getHttpServer()).get('/api/access/requests')
+      .set('Authorization', 'Bearer ' + admin.accessToken).expect(200);
+
+    expect(access.request).toHaveBeenCalledWith(empresaA.id, employee.user.id, { module: 'sales' });
+    expect(access.list).toHaveBeenCalledWith(empresaA.id);
   });
 
   it('colaborador não acessa a gestão de usuários', async () => {

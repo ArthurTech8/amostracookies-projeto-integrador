@@ -1,4 +1,4 @@
-import type { Product, ProductInput } from '../types'
+import type { Product, ProductInput, SaleOption } from '../types'
 import { http } from './http'
 
 /** Formato devolvido pela API (com campos que a tela não usa). */
@@ -36,7 +36,25 @@ function toPayload(input: ProductInput): ProductInput {
   }
 }
 
+export const productActionLabels = {
+  created: 'Cadastro',
+  updated: 'Alteração',
+  deactivated: 'Desativação',
+  stock_entry: 'Entrada de estoque',
+}
+
+export interface ProductMovement {
+  id: string
+  userId: string
+  productName: string
+  action: keyof typeof productActionLabels
+  stockDelta: number | null
+  createdAt: string
+}
+
 export const productsService = {
+  movements: () => http.get<ProductMovement[]>('/products/movements'),
+  saleOptions: () => http.get<SaleOption[]>('/products/sale-options'),
   async list(): Promise<Product[]> {
     return (await http.get<ApiProduct[]>('/products')).map(toProduct)
   },

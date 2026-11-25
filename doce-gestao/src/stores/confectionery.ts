@@ -1,60 +1,29 @@
 import { defineStore } from 'pinia'
-import { computed, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import { errorMessage } from '../services/http'
 import { productsService } from '../services/products.service'
-import type { Expense, Product, ProductInput, Sale, SaleItem } from '../types'
-import { makeId, todayISO } from '../utils/format'
-
-const STORAGE_KEY = 'doce-gestao-v1'
-
-/**
- * Despesas e vendas ainda ficam no navegador até migrarem para a API.
- * Produtos já vêm da API e não são mais salvos aqui.
- */
-interface StoredData {
-  expenses: Expense[]
-  sales: Sale[]
-}
+import { salesService, type PaymentMethod } from '../services/sales.service'
+import type { Expense, Product, ProductInput, Sale, SaleItem, SaleOption } from '../types'
+import { expensesService, type ExpenseInput } from '../services/expenses.service'
+import { todayISO } from '../utils/format'
 
 type LoadStatus = 'idle' | 'loading' | 'ready' | 'error'
 
-const initialData: StoredData = {
-  expenses: [
-    { id: 'internet-inicial', description: 'Internet', category: 'Contas fixas', amount: 120, date: todayISO(), recurring: true },
-    { id: 'luz-inicial', description: 'Energia elétrica', category: 'Contas fixas', amount: 230, date: todayISO(), recurring: true },
-    { id: 'agua-inicial', description: 'Água', category: 'Contas fixas', amount: 90, date: todayISO(), recurring: true },
-  ],
-  sales: [],
-}
-
-function loadData(): StoredData {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) {
-      const parsed = JSON.parse(raw) as Partial<StoredData>
-      return { expenses: parsed.expenses ?? [], sales: parsed.sales ?? [] }
-    }
-  } catch {
-    console.warn('Não foi possível carregar os dados salvos. Será usado o cadastro inicial.')
-  }
-  return structuredClone(initialData)
-}
-
 export const useConfectioneryStore = defineStore('confectionery', () => {
-  const loaded = loadData()
   const products = ref<Product[]>([])
   const productsStatus = ref<LoadStatus>('idle')
   const productsError = ref<string | null>(null)
-  const expenses = ref<Expense[]>(loaded.expenses)
-  const sales = ref<Sale[]>(loaded.sales)
-
-  watch([expenses, sales], () => {
-    const data: StoredData = {
-      expenses: expenses.value,
-      sales: sales.value,
-    }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
-  }, { deep: true })
+  const expenses = ref<Expense[]>([])
+  const expensesError = ref<string | null>(null)
+  const sales = ref<Sale[]>([])
+  const saleOptions = ref<SaleOption[]>([])
+  const saleOptionsError = ref<string | null>(null)
+  const salesError = ref<string | null>(null)
+  let session = 0
+  let expenseRequest = 0
+  let productRequest = 0
+  let saleRequest = 0
+  let optionsRequest = 0
 
   const activeProducts = computed(() => products.value.filter(product => product.active))
   const fixedExpenses = computed(() => expenses.value.filter(expense => expense.recurring).reduce((sum, item) => sum + item.amount, 0))
@@ -67,81 +36,147 @@ export const useConfectioneryStore = defineStore('confectionery', () => {
   }
 
   async function loadProducts() {
+    const request = ++productRequest
     productsStatus.value = 'loading'
     productsError.value = null
     try {
-      products.value = await productsService.list()
+      const result = await productsService.list()
+      if (request !== productRequest) return
+      products.value = result
       productsStatus.value = 'ready'
     } catch (error) {
+      if (request !== productRequest) return
       productsError.value = errorMessage(error)
       productsStatus.value = 'error'
     }
   }
 
-  /** Limpa os produtos ao sair, para não mostrar dados de outra empresa no próximo login. */
-  function resetProducts() {
+  /** Limpa os dados e ignora respostas iniciadas na sessão anterior. */
+  function resetSession() {
+    session++
+    setSalesAccess(false)
+    setSaleOptionsAccess(false)
+    setProductsAccess(false)
+    setExpensesAccess(false)
+  }
+
+  function setSalesAccess(allowed: boolean) {
+    if (allowed) { void loadSales(); return }
+    saleRequest++
+    sales.value = []
+    salesError.value = null
+  }
+
+  function setSaleOptionsAccess(allowed: boolean) {
+    if (allowed) {
+      void loadSaleOptions()
+      return
+    }
+    optionsRequest++
+    saleOptions.value = []
+    saleOptionsError.value = null
+  }
+
+  async function loadSaleOptions() {
+    const request = ++optionsRequest
+    saleOptionsError.value = null
+    try {
+      const options = await productsService.saleOptions()
+      if (optionsRequest === request) saleOptions.value = options
+    } catch (error) {
+      if (optionsRequest === request) saleOptionsError.value = errorMessage(error)
+    }
+  }
+
+  function setProductsAccess(allowed: boolean) {
+    if (allowed) { void loadProducts(); return }
+    productRequest++
     products.value = []
     productsStatus.value = 'idle'
     productsError.value = null
   }
 
   async function saveProduct(input: ProductInput, id?: string) {
-    replaceProduct(id ? await productsService.update(id, input) : await productsService.create(input))
+    const currentSession = session
+    const product = id ? await productsService.update(id, input) : await productsService.create(input)
+    if (session === currentSession) replaceProduct(product)
   }
 
   /** "Excluir" desativa o produto na API; ele continua na lista como inativo. */
   async function deleteProduct(id: string) {
-    replaceProduct(await productsService.deactivate(id))
+    const currentSession = session
+    const product = await productsService.deactivate(id)
+    if (session === currentSession) replaceProduct(product)
   }
 
   async function addStock(id: string, quantity: number) {
-    replaceProduct(await productsService.addStock(id, quantity))
+    const currentSession = session
+    const product = await productsService.addStock(id, quantity)
+    if (session === currentSession) replaceProduct(product)
   }
 
-  function saveExpense(expense: Omit<Expense, 'id'>) {
-    expenses.value.push({ ...expense, id: makeId() })
+  function setExpensesAccess(allowed: boolean) {
+    expensesError.value = null
+    const request = ++expenseRequest
+    if (!allowed) {
+      expenses.value = []
+      return
+    }
+    void expensesService.list().then(result => {
+      if (request === expenseRequest) expenses.value = result
+    }).catch((error: unknown) => {
+      if (request === expenseRequest) expensesError.value = errorMessage(error)
+    })
   }
 
-  function deleteExpense(id: string) {
-    expenses.value = expenses.value.filter(expense => expense.id !== id)
+  async function saveExpense(input: ExpenseInput) {
+    const currentSession = session
+    const expense = await expensesService.create(input)
+    if (session === currentSession) expenses.value = [expense, ...expenses.value]
   }
 
-  function registerSale(items: SaleItem[], discount: number, paymentMethod: string, date = todayISO()) {
-    if (!items.length) throw new Error('Adicione pelo menos um produto à venda.')
-    for (const item of items) {
-      const product = products.value.find(product => product.id === item.productId)
-      if (!product || product.stock < item.quantity) throw new Error(`Estoque insuficiente para ${item.productName}.`)
-    }
-    for (const item of items) {
-      const product = products.value.find(product => product.id === item.productId)
-      if (product) product.stock -= item.quantity
-    }
-    const subtotal = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0)
-    const sale: Sale = {
-      id: makeId(),
-      date,
-      items: items.map(item => ({ ...item })),
-      discount,
-      paymentMethod,
-      total: Math.max(0, subtotal - discount),
-    }
-    sales.value.push(sale)
-    return sale
+  async function deleteExpense(id: string) {
+    const currentSession = session
+    await expensesService.remove(id)
+    if (session === currentSession) expenses.value = expenses.value.filter(expense => expense.id !== id)
   }
 
-  function deleteSale(id: string) {
-    const sale = sales.value.find(item => item.id === id)
-    if (!sale) return
-    for (const item of sale.items) {
-      const product = products.value.find(product => product.id === item.productId)
-      if (product) product.stock += item.quantity
+  async function loadSales() {
+    const request = ++saleRequest
+    salesError.value = null
+    try {
+      const result = await salesService.list()
+      if (request === saleRequest) sales.value = result
+    } catch (error) {
+      if (request === saleRequest) salesError.value = errorMessage(error)
     }
+  }
+
+  // O servidor calcula os totais e movimenta o estoque na mesma transação.
+  async function registerSale(items: Pick<SaleItem, 'productId' | 'quantity'>[], discount: number, paymentMethod: PaymentMethod, date = todayISO()) {
+    const currentSession = session
+    const sale = await salesService.create(items.map(({ productId, quantity }) => ({ productId, quantity })), discount, paymentMethod, date)
+    if (session !== currentSession) return
+    sales.value = [sale, ...sales.value.filter(item => item.id !== sale.id)]
+    await Promise.all([
+      loadSales(),
+      loadSaleOptions(),
+      ...(productsStatus.value === 'idle' ? [] : [loadProducts()]),
+    ])
+  }
+
+  async function deleteSale(id: string) {
+    const currentSession = session
+    await salesService.remove(id)
+    if (session !== currentSession) return
     sales.value = sales.value.filter(item => item.id !== id)
+    await Promise.all([loadSales(), loadSaleOptions(), loadProducts()])
   }
 
   return {
-    products, productsStatus, productsError, expenses, sales, activeProducts, fixedExpenses, lowStockProducts,
-    loadProducts, resetProducts, saveProduct, deleteProduct, addStock,
-    saveExpense, deleteExpense, registerSale, deleteSale,
+    products, productsStatus, productsError, expenses, sales, salesError, activeProducts, fixedExpenses, lowStockProducts,
+    loadProducts, loadSales, resetSession, setProductsAccess, setSalesAccess, saveProduct, deleteProduct, addStock,
+    setSaleOptionsAccess, loadSaleOptions, saleOptions, saleOptionsError,
+    setExpensesAccess, expensesError, saveExpense, deleteExpense, registerSale, deleteSale,
   }
 })

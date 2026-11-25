@@ -1,10 +1,23 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { Download, FileBarChart } from 'lucide-vue-next'
-import { useConfectioneryStore } from '../stores/confectionery'
+import { errorMessage } from '../services/http'
+import { reportsService, type ReportsData } from '../services/reports.service'
 import { currency, dateLabel, todayISO } from '../utils/format'
 
-const store = useConfectioneryStore()
+const data = ref<ReportsData | null>(null)
+const error = ref('')
+
+async function load() {
+  error.value = ''
+  try {
+    data.value = await reportsService.read()
+  } catch (err) {
+    error.value = errorMessage(err)
+  }
+}
+
+onMounted(load)
 const period = ref('monthly')
 const kind = ref('financial')
 const from = ref(todayISO().slice(0, 8) + '01')
@@ -18,8 +31,8 @@ const start = computed(() => {
   return period.value === 'daily' ? todayISO() : local.toISOString().slice(0, 10)
 })
 const end = computed(() => period.value === 'custom' ? to.value : todayISO())
-const sales = computed(() => store.sales.filter(sale => sale.date >= start.value && sale.date <= end.value))
-const expenses = computed(() => store.expenses.filter(expense => expense.date >= start.value && expense.date <= end.value))
+const sales = computed(() => (data.value?.sales ?? []).filter(sale => sale.date >= start.value && sale.date <= end.value))
+const expenses = computed(() => (data.value?.expenses ?? []).filter(expense => expense.date >= start.value && expense.date <= end.value))
 const revenue = computed(() => sales.value.reduce((sum, sale) => sum + sale.total, 0))
 const cost = computed(() => sales.value.reduce((sum, sale) => sum + sale.items.reduce((s, item) => s + item.quantity * item.unitCost, 0), 0))
 const expenseTotal = computed(() => expenses.value.reduce((sum, expense) => sum + expense.amount, 0))
@@ -50,9 +63,11 @@ function exportCsv() {
 </script>
 
 <template>
-  <div class="page-heading"><div><p class="eyebrow">ANÁLISE DO NEGÓCIO</p><h1>Relatórios</h1><p class="muted">Acompanhe resultados por período e exporte os dados.</p></div><button class="secondary-btn" @click="exportCsv"><Download :size="17" /> Exportar CSV</button></div>
+  <div class="page-heading"><div><p class="eyebrow">ANÁLISE DO NEGÓCIO</p><h1>Relatórios</h1><p class="muted">Acompanhe resultados por período e exporte os dados.</p></div><button class="secondary-btn" :disabled="!data" @click="exportCsv"><Download :size="17" /> Exportar CSV</button></div>
   <section class="panel report-filters"><div class="panel-heading"><div><h2>Filtros do relatório</h2><p class="muted">Escolha o intervalo e o tipo de análise.</p></div><FileBarChart :size="21" class="pink-text" /></div><div class="filter-row"><label class="field">Período<select v-model="period"><option value="daily">Diário (hoje)</option><option value="weekly">Últimos 7 dias</option><option value="monthly">Este mês</option><option value="custom">Personalizado</option></select></label><label v-if="period === 'custom'" class="field">De<input v-model="from" type="date" /></label><label v-if="period === 'custom'" class="field">Até<input v-model="to" type="date" :min="from" /></label><label class="field grow">Tipo de relatório<select v-model="kind"><option value="financial">Financeiro</option><option value="sales">Vendas por produto</option><option value="expenses">Despesas</option><option value="stock">Estoque atual</option></select></label></div><p class="filter-range">Período analisado: <strong>{{ dateLabel(start) }} até {{ dateLabel(end) }}</strong></p></section>
-  <template v-if="kind === 'financial'">
+  <p v-if="error" role="alert">{{ error }} <button type="button" class="small-btn" @click="load">Tentar novamente</button></p>
+  <p v-else-if="!data" class="muted">Carregando relatório…</p>
+  <template v-else-if="kind === 'financial'">
     <div class="summary-grid"><article class="metric-card"><div class="metric-top"><span>Faturamento</span></div><strong>{{ currency(revenue) }}</strong><small>Vendas no período</small></article><article class="metric-card"><div class="metric-top"><span>Custo vendido</span></div><strong>{{ currency(cost) }}</strong><small>Custo dos itens vendidos</small></article><article class="metric-card"><div class="metric-top"><span>Despesas</span></div><strong>{{ currency(expenseTotal) }}</strong><small>Despesas lançadas no período</small></article><article class="metric-card"><div class="metric-top"><span>Lucro líquido estimado</span></div><strong :class="revenue - cost - expenseTotal >= 0 ? 'positive' : 'negative'">{{ currency(revenue - cost - expenseTotal) }}</strong><small>Após custos e despesas</small></article></div>
     <section class="panel table-panel"><div class="panel-heading"><div><h2>Composição do resultado</h2><p class="muted">Detalhamento financeiro do período.</p></div></div><div class="finance-line"><span>Faturamento</span><strong>{{ currency(revenue) }}</strong></div><div class="finance-line"><span>(−) Custo dos produtos</span><strong>{{ currency(cost) }}</strong></div><div class="finance-line"><span>(−) Despesas lançadas</span><strong>{{ currency(expenseTotal) }}</strong></div><div class="finance-total"><span>Lucro líquido estimado</span><strong>{{ currency(revenue - cost - expenseTotal) }}</strong></div></section>
   </template>
@@ -63,6 +78,6 @@ function exportCsv() {
     <section class="panel table-panel"><div class="panel-heading"><div><h2>Despesas no período</h2><p class="muted">Total: {{ currency(expenseTotal) }}</p></div></div><div v-if="expenses.length" class="table-wrap"><table><thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Tipo</th><th>Valor</th></tr></thead><tbody><tr v-for="expense in expenses" :key="expense.id"><td>{{ dateLabel(expense.date) }}</td><td>{{ expense.description }}</td><td>{{ expense.category }}</td><td>{{ expense.recurring ? 'Recorrente' : 'Variável' }}</td><td class="table-money">{{ currency(expense.amount) }}</td></tr></tbody></table></div><div v-else class="empty-state"><p>Não há despesas neste período.</p></div></section>
   </template>
   <template v-else>
-    <section class="panel table-panel"><div class="panel-heading"><div><h2>Posição atual do estoque</h2><p class="muted">Estoque disponível de todos os produtos.</p></div></div><div class="table-wrap"><table><thead><tr><th>Produto</th><th>Categoria</th><th>Quantidade</th><th>Estoque mínimo</th><th>Situação</th></tr></thead><tbody><tr v-for="product in store.products" :key="product.id"><td>{{ product.name }}</td><td>{{ product.category }}</td><td>{{ product.stock }}</td><td>{{ product.minStock }}</td><td><span class="status" :class="{ inactive: product.stock <= product.minStock }">{{ product.stock <= product.minStock ? 'Repor estoque' : 'Disponível' }}</span></td></tr></tbody></table></div></section>
+    <section class="panel table-panel"><div class="panel-heading"><div><h2>Posição atual do estoque</h2><p class="muted">Estoque disponível de todos os produtos.</p></div></div><div class="table-wrap"><table><thead><tr><th>Produto</th><th>Categoria</th><th>Quantidade</th><th>Estoque mínimo</th><th>Situação</th></tr></thead><tbody><tr v-for="product in data.products" :key="product.id"><td>{{ product.name }}</td><td>{{ product.category }}</td><td>{{ product.stock }}</td><td>{{ product.minStock }}</td><td><span class="status" :class="{ inactive: product.stock <= product.minStock }">{{ product.stock <= product.minStock ? 'Repor estoque' : 'Disponível' }}</span></td></tr></tbody></table></div></section>
   </template>
 </template>

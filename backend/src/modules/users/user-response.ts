@@ -1,3 +1,4 @@
+import type { ModulePermissions } from '../../common/decorators/module-access.decorator';
 import type { User } from './entities/user.entity';
 import type { UserRole } from './entities/user-role.enum';
 
@@ -9,6 +10,7 @@ export interface UserResponse {
   username: string;
   role: UserRole;
   active: boolean;
+  permissions?: ModulePermissions;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -21,6 +23,7 @@ export function toUserResponse(user: User): UserResponse {
     username: user.username,
     role: user.role,
     active: user.active,
+    permissions: user.permissions,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
   };

@@ -77,7 +77,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   const data: unknown = response.status === 204 ? null : await response.json().catch(() => null)
 
   if (!response.ok) {
-    if (response.status === 401 && token) unauthorizedHandler?.()
+    if (response.status === 401 && token && token === tokenStorage.get()) unauthorizedHandler?.()
     throw new ApiError(extractMessage(data), response.status)
   }
   return data as T

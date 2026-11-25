@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { authService, type LoginPayload } from '../services/auth.service'
 import { ApiError, onUnauthorized, tokenStorage } from '../services/http'
-import type { AuthProfile } from '../types'
+import type { AccessLevel, AccessModule, AuthProfile } from '../types'
 
 type AuthStatus = 'checking' | 'authenticated' | 'anonymous'
 
@@ -49,9 +49,22 @@ export const useAuthStore = defineStore('auth', () => {
     status.value = 'authenticated'
   }
 
+  // O menu reflete a política atual; o servidor também verifica cada operação.
+  function can(module: AccessModule, required: AccessLevel = 'view') {
+    if (user.value?.role === 'admin') return true
+    const level = user.value?.permissions?.[module]
+    return level === 'operate' || (level === 'view' && required === 'view')
+  }
+
+  async function refresh() {
+    const current = user.value
+    const updated = await authService.me()
+    if (user.value === current) user.value = updated
+  }
+
   function logout() {
     clearSession()
   }
 
-  return { user, status, sessionMessage, isAuthenticated, init, login, logout }
+  return { user, status, sessionMessage, isAuthenticated, can, refresh, init, login, logout }
 })

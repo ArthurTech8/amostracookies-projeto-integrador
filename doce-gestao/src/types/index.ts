@@ -11,7 +11,18 @@ export interface Product {
 }
 
 /** Dados do formulário de produto (sem o id). */
-export type ProductInput = Omit<Product, 'id'>
+export type ProductInput = Omit<Product, 'id' | 'stock' | 'minStock'> & Partial<Pick<Product, 'stock' | 'minStock'>>
+
+export const moduleLabels = {
+  products: 'Cadastro de produtos',
+  stock: 'Estoque',
+  sales: 'Vendas',
+  expenses: 'Despesas',
+  reports: 'Relatórios',
+} as const
+export type AccessModule = keyof typeof moduleLabels
+export type AccessLevel = 'view' | 'operate'
+export type ModulePermissions = Partial<Record<AccessModule, AccessLevel>>
 
 export type UserRole = 'super_admin' | 'admin' | 'staff'
 
@@ -21,10 +32,12 @@ export interface AuthProfile {
   name: string
   username: string
   role: UserRole
+  permissions?: ModulePermissions
   company: { id: string; name: string; slug: string } | null
 }
 
 export interface Expense {
+  createdById: string
   id: string
   description: string
   category: string
@@ -32,6 +45,8 @@ export interface Expense {
   date: string
   recurring: boolean
 }
+
+export type SaleOption = Pick<Product, 'id' | 'name' | 'price' | 'stock'>
 
 export interface SaleItem {
   productId: string
@@ -42,6 +57,7 @@ export interface SaleItem {
 }
 
 export interface Sale {
+  createdById: string
   id: string
   date: string
   items: SaleItem[]
@@ -51,4 +67,4 @@ export interface Sale {
 }
 
 export type Period = 'daily' | 'weekly' | 'monthly'
-export type Section = 'dashboard' | 'products' | 'product-form' | 'expenses' | 'sales' | 'reports' 
+export type Section = 'dashboard' | 'products' | 'stock' | 'product-form' | 'expenses' | 'sales' | 'reports' | 'team'

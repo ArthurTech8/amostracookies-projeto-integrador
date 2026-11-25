@@ -4,9 +4,12 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ENV_FILE_PATHS } from './config/env-files';
 import { validateEnv, type Env } from './config/env.validation';
 import { buildTypeOrmOptions } from './database/typeorm-options';
+import { AccessModule } from './modules/access/access.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CompaniesModule } from './modules/companies/companies.module';
+import { ExpensesModule } from './modules/expenses/expenses.module';
 import { ProductsModule } from './modules/products/products.module';
+import { ReportsModule } from './modules/reports/reports.module';
 import { SalesModule } from './modules/sales/sales.module';
 import { UsersModule } from './modules/users/users.module';
 
@@ -22,9 +25,12 @@ import { UsersModule } from './modules/users/users.module';
         }),
     }),
     AuthModule,
+    AccessModule,
     CompaniesModule,
     UsersModule,
     ProductsModule,
+    ExpensesModule,
+    ReportsModule,
     SalesModule,
   ],
 })

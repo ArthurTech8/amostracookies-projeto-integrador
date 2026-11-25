@@ -5,7 +5,16 @@ import { useAuthStore } from '../stores/auth'
 import { errorMessage } from '../services/http'
 
 const auth = useAuthStore()
-const form = reactive({ companySlug: '', username: '', password: '' })
+// Identifica a empresa somente em subdomínios do domínio configurado.
+const baseDomain = String(import.meta.env.VITE_TENANT_BASE_DOMAIN ?? '').trim().toLowerCase()
+const hostname = window.location.hostname.toLowerCase()
+const subdomain = baseDomain && hostname.endsWith('.' + baseDomain)
+  ? hostname.slice(0, -(baseDomain.length + 1))
+  : ''
+const tenantSlug = /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(subdomain) && subdomain !== 'www'
+  ? subdomain
+  : ''
+const form = reactive({ companySlug: tenantSlug, username: '', password: '' })
 const submitting = ref(false)
 const error = ref<string | null>(null)
 
@@ -40,9 +49,9 @@ async function submit() {
         <div><strong>doce<span>gestão</span></strong><small>PAINEL DA CONFEITARIA</small></div>
       </div>
       <h1>Entrar</h1>
-      <p class="muted">Use o código da sua empresa e o seu usuário.</p>
+      <p class="muted">{{ tenantSlug ? 'Empresa: ' + tenantSlug : 'Use o código da sua empresa e o seu usuário.' }}</p>
       <p v-if="auth.sessionMessage && !error" class="notice">{{ auth.sessionMessage }}</p>
-      <label class="field">Código da empresa
+      <label v-if="!tenantSlug" class="field">Código da empresa
         <input v-model="form.companySlug" autocomplete="organization" autocapitalize="none" spellcheck="false" placeholder="Ex.: doce-da-ana" required />
       </label>
       <label class="field">Usuário

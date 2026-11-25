@@ -1,25 +1,25 @@
 <script setup lang="ts">
-import { nextTick, ref, watch } from 'vue'
+import { ref, useId, watch } from 'vue'
 
-/** Caixa de confirmação do projeto (substitui o `confirm()` do navegador). */
 const props = withDefaults(defineProps<{
   open: boolean
   title: string
   message: string
+  cancelLabel?: string
   confirmLabel?: string
   danger?: boolean
   busy?: boolean
-}>(), { confirmLabel: 'Confirmar', danger: false, busy: false })
+}>(), { cancelLabel: 'Cancelar', confirmLabel: 'Confirmar', danger: false, busy: false })
 
 const emit = defineEmits<{ confirm: []; cancel: [] }>()
-const cancelButton = ref<HTMLButtonElement | null>(null)
+const dialog = ref<HTMLDialogElement>()
+const id = useId()
 
-watch(() => props.open, async open => {
-  if (open) {
-    await nextTick()
-    cancelButton.value?.focus()
-  }
-})
+// O diálogo nativo impede interação com o restante da página enquanto estiver aberto.
+watch([() => props.open, dialog], ([open, element]) => {
+  if (open && !element?.open) element?.showModal()
+  if (!open && element?.open) element.close()
+}, { flush: 'post' })
 
 function cancel() {
   if (!props.busy) emit('cancel')
@@ -27,16 +27,20 @@ function cancel() {
 </script>
 
 <template>
-  <div v-if="open" class="dialog-backdrop" @click.self="cancel" @keydown.esc="cancel">
-    <div class="dialog panel" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-message">
-      <h2 id="confirm-title">{{ title }}</h2>
-      <p id="confirm-message" class="muted">{{ message }}</p>
-      <div class="form-actions">
-        <button ref="cancelButton" type="button" class="secondary-btn" :disabled="busy" @click="cancel">Cancelar</button>
-        <button type="button" class="primary-btn" :class="{ 'danger-btn': danger }" :disabled="busy" @click="emit('confirm')">
-          {{ busy ? 'Aguarde...' : confirmLabel }}
-        </button>
-      </div>
+  <dialog ref="dialog" class="dialog panel" :aria-labelledby="id + '-title'"
+    :aria-describedby="id + '-message'" @cancel.prevent="cancel">
+    <h2 :id="id + '-title'">{{ title }}</h2>
+    <p :id="id + '-message'" class="muted">{{ message }}</p>
+    <div class="form-actions">
+      <button type="button" class="secondary-btn" :disabled="busy" autofocus @click="cancel">{{ cancelLabel }}</button>
+      <button type="button" class="primary-btn" :class="{ 'danger-btn': danger }" :disabled="busy" @click="emit('confirm')">
+        {{ busy ? 'Aguarde...' : confirmLabel }}
+      </button>
     </div>
-  </div>
+  </dialog>
 </template>
+
+<style scoped>
+dialog { margin: auto; color: inherit; max-width: calc(100vw - 2rem); }
+dialog::backdrop { background: rgb(0 0 0 / 45%); }
+</style>

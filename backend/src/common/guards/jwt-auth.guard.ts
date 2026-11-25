@@ -48,7 +48,12 @@ export class JwtAuthGuard implements CanActivate {
     }
 
     // Papel e empresa vêm do banco: mudanças feitas por um admin valem já na próxima requisição.
-    request.user = { userId: user.id, companyId: user.companyId, role: user.role };
+    request.user = {
+      userId: user.id,
+      companyId: user.companyId,
+      role: user.role,
+      permissions: user.permissions,
+    };
     return true;
   }
 

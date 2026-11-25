@@ -1,16 +1,35 @@
 <script setup lang="ts">
-import { X } from 'lucide-vue-next'
+import { computed, ref, watch } from 'vue'
 import { useNotificationsStore } from '../stores/notifications'
 
-/** Mostra os avisos rápidos (substitui o `alert()` do navegador). */
 const notifications = useNotificationsStore()
+const notice = computed(() => notifications.notices[0])
+const dialog = ref<HTMLDialogElement>()
+
+// O diálogo nativo mantém o foco no modal e o devolve ao fechar.
+watch(notice, (current) => {
+  if (current && !dialog.value?.open) dialog.value?.showModal()
+  if (!current) dialog.value?.close()
+}, { flush: 'post' })
+
+function dismiss() {
+  if (notice.value) notifications.dismiss(notice.value.id)
+}
 </script>
 
 <template>
-  <div class="toast-host" aria-live="polite">
-    <div v-for="notice in notifications.notices" :key="notice.id" class="toast" :class="notice.kind" :role="notice.kind === 'error' ? 'alert' : 'status'">
-      <span>{{ notice.message }}</span>
-      <button class="toast-close" aria-label="Fechar aviso" @click="notifications.dismiss(notice.id)"><X :size="14" /></button>
-    </div>
-  </div>
+  <dialog ref="dialog" class="panel notice-dialog" aria-labelledby="notice-title"
+    aria-describedby="notice-message" @cancel.prevent="dismiss">
+    <template v-if="notice">
+      <h2 id="notice-title">{{ notice.kind === 'error' ? 'Atenção' : 'Concluído' }}</h2>
+      <p id="notice-message">{{ notice.message }}</p>
+      <button type="button" class="primary-btn" autofocus @click="dismiss">Fechar</button>
+    </template>
+  </dialog>
 </template>
+
+<style scoped>
+.notice-dialog { width: min(90vw, 28rem); color: inherit; margin: auto; }
+.notice-dialog::backdrop { background: rgb(0 0 0 / 45%); }
+.notice-dialog p { margin: 1rem 0; }
+</style>

@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { ModuleAccess } from '../../common/decorators/module-access.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import type { AuthUser } from '../../common/types/auth-user';
 import { requireCompanyId } from '../../common/utils/require-company-id';
@@ -30,17 +31,20 @@ export class SalesController {
   constructor(private readonly salesService: SalesService) {}
 
   @Get()
+  @ModuleAccess('view', 'sales')
   findAll(@CurrentUser() user: AuthUser): Promise<Sale[]> {
     return this.salesService.findAll(requireCompanyId(user));
   }
 
   @Get(':id')
+  @ModuleAccess('view', 'sales')
   findOne(@CurrentUser() user: AuthUser, @Param('id', uuidPipe) id: string): Promise<Sale> {
     return this.salesService.findOne(requireCompanyId(user), id);
   }
 
   /** Registra a venda e baixa o estoque dos produtos. */
   @Post()
+  @ModuleAccess('operate', 'sales')
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateSaleDto): Promise<Sale> {
     return this.salesService.create(requireCompanyId(user), user.userId, dto);
   }
