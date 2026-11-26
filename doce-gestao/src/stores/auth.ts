@@ -1,3 +1,4 @@
+/* Legacy authentication implementation kept for reference.
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import { AuthError, getProfile, login as authenticate } from '../services/auth'
@@ -42,6 +43,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   return { user, sessionError, login, logout, restoreSession }
 })
+*/
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { authService, type LoginPayload } from '../services/auth.service'
@@ -69,13 +71,18 @@ export const useAuthStore = defineStore('auth', () => {
 
   /** Restaura a sessão salva, se o token ainda for válido. */
   async function init() {
-    if (!tokenStorage.get()) {
+    if (status.value === 'authenticated') return
+
+    const token = tokenStorage.get()
+    if (!token) {
       status.value = 'anonymous'
       return
     }
+    status.value = 'checking'
     try {
       user.value = await authService.me()
       status.value = 'authenticated'
+      sessionMessage.value = null
     } catch (error) {
       clearSession(
         error instanceof ApiError && error.status === 0

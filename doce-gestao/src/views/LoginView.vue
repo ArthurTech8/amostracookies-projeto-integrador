@@ -17,7 +17,7 @@ const errorMessage = ref('')
 async function submit() {
   if (pending.value) return
   errorMessage.value = ''
-  auth.sessionError = ''
+  auth.sessionMessage = null
 
   if (!companySlug.value || !username.value || !password.value) {
     errorMessage.value = 'Preencha o código da empresa, o usuário e a senha.'
@@ -79,8 +79,8 @@ async function submit() {
             </button>
           </div>
         </div>
-        <p v-if="errorMessage || auth.sessionError" class="error-message" role="alert">
-          {{ errorMessage || auth.sessionError }}
+        <p v-if="errorMessage || auth.sessionMessage" class="error-message" role="alert">
+          {{ errorMessage || auth.sessionMessage }}
         </p>
         <button class="primary-btn login-submit" type="submit" :disabled="pending">
           {{ pending ? 'Entrando…' : 'Entrar' }}

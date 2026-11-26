@@ -13,8 +13,8 @@ export const router = createRouter({
 
 router.beforeEach(async (to) => {
   const auth = useAuthStore()
-  await auth.restoreSession()
+  await auth.init()
 
-  if (!auth.user && to.name === 'dashboard') return { name: 'login' }
-  if (auth.user && to.name === 'login') return { name: 'dashboard' }
+  if (!auth.isAuthenticated && to.name === 'dashboard') return { name: 'login' }
+  if (auth.isAuthenticated && to.name === 'login') return { name: 'dashboard' }
 })
