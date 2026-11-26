@@ -10,6 +10,20 @@ export interface Product {
   active: boolean
 }
 
+/** Dados do formulário de produto (sem o id). */
+export type ProductInput = Omit<Product, 'id'>
+
+export type UserRole = 'super_admin' | 'admin' | 'staff'
+
+/** Usuário logado, como devolvido por /auth/login e /auth/me. */
+export interface AuthProfile {
+  id: string
+  name: string
+  username: string
+  role: UserRole
+  company: { id: string; name: string; slug: string } | null
+}
+
 export interface Expense {
   id: string
   description: string

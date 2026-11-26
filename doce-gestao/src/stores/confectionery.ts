@@ -1,28 +1,24 @@
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
-import type { Expense, Product, Sale, SaleItem } from '../types'
+import { errorMessage } from '../services/http'
+import { productsService } from '../services/products.service'
+import type { Expense, Product, ProductInput, Sale, SaleItem } from '../types'
 import { makeId, todayISO } from '../utils/format'
 
 const STORAGE_KEY = 'doce-gestao-v1'
 
+/**
+ * Despesas e vendas ainda ficam no navegador até migrarem para a API.
+ * Produtos já vêm da API e não são mais salvos aqui.
+ */
 interface StoredData {
-  products: Product[]
   expenses: Expense[]
   sales: Sale[]
 }
 
+type LoadStatus = 'idle' | 'loading' | 'ready' | 'error'
+
 const initialData: StoredData = {
-  products: [{
-    id: 'cupcake-tradicional',
-    name: 'Cupcake tradicional',
-    category: 'Cupcakes',
-    description: 'Cupcake tradicional da confeitaria.',
-    cost: 4.5,
-    price: 8,
-    stock: 0,
-    minStock: 5,
-    active: true,
-  }],
   expenses: [
     { id: 'internet-inicial', description: 'Internet', category: 'Contas fixas', amount: 120, date: todayISO(), recurring: true },
     { id: 'luz-inicial', description: 'Energia elétrica', category: 'Contas fixas', amount: 230, date: todayISO(), recurring: true },
@@ -34,7 +30,10 @@ const initialData: StoredData = {
 function loadData(): StoredData {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) return JSON.parse(raw) as StoredData
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<StoredData>
+      return { expenses: parsed.expenses ?? [], sales: parsed.sales ?? [] }
+    }
   } catch {
     console.warn('Não foi possível carregar os dados salvos. Será usado o cadastro inicial.')
   }
@@ -43,13 +42,14 @@ function loadData(): StoredData {
 
 export const useConfectioneryStore = defineStore('confectionery', () => {
   const loaded = loadData()
-  const products = ref<Product[]>(loaded.products)
+  const products = ref<Product[]>([])
+  const productsStatus = ref<LoadStatus>('idle')
+  const productsError = ref<string | null>(null)
   const expenses = ref<Expense[]>(loaded.expenses)
   const sales = ref<Sale[]>(loaded.sales)
 
-  watch([products, expenses, sales], () => {
+  watch([expenses, sales], () => {
     const data: StoredData = {
-      products: products.value,
       expenses: expenses.value,
       sales: sales.value,
     }
@@ -60,22 +60,42 @@ export const useConfectioneryStore = defineStore('confectionery', () => {
   const fixedExpenses = computed(() => expenses.value.filter(expense => expense.recurring).reduce((sum, item) => sum + item.amount, 0))
   const lowStockProducts = computed(() => activeProducts.value.filter(product => product.stock <= product.minStock))
 
-  function saveProduct(product: Omit<Product, 'id'> & { id?: string }) {
-    if (product.id) {
-      const index = products.value.findIndex(item => item.id === product.id)
-      if (index >= 0) products.value[index] = { ...product, id: product.id }
-    } else {
-      products.value.push({ ...product, id: makeId() })
+  function replaceProduct(updated: Product) {
+    const index = products.value.findIndex(item => item.id === updated.id)
+    if (index >= 0) products.value[index] = updated
+    else products.value.push(updated)
+  }
+
+  async function loadProducts() {
+    productsStatus.value = 'loading'
+    productsError.value = null
+    try {
+      products.value = await productsService.list()
+      productsStatus.value = 'ready'
+    } catch (error) {
+      productsError.value = errorMessage(error)
+      productsStatus.value = 'error'
     }
   }
 
-  function deleteProduct(id: string) {
-    products.value = products.value.filter(product => product.id !== id)
+  /** Limpa os produtos ao sair, para não mostrar dados de outra empresa no próximo login. */
+  function resetProducts() {
+    products.value = []
+    productsStatus.value = 'idle'
+    productsError.value = null
   }
 
-  function addStock(id: string, quantity: number) {
-    const product = products.value.find(item => item.id === id)
-    if (product && quantity > 0) product.stock += quantity
+  async function saveProduct(input: ProductInput, id?: string) {
+    replaceProduct(id ? await productsService.update(id, input) : await productsService.create(input))
+  }
+
+  /** "Excluir" desativa o produto na API; ele continua na lista como inativo. */
+  async function deleteProduct(id: string) {
+    replaceProduct(await productsService.deactivate(id))
+  }
+
+  async function addStock(id: string, quantity: number) {
+    replaceProduct(await productsService.addStock(id, quantity))
   }
 
   function saveExpense(expense: Omit<Expense, 'id'>) {
@@ -120,7 +140,8 @@ export const useConfectioneryStore = defineStore('confectionery', () => {
   }
 
   return {
-    products, expenses, sales, activeProducts, fixedExpenses, lowStockProducts,
-    saveProduct, deleteProduct, addStock, saveExpense, deleteExpense, registerSale, deleteSale,
+    products, productsStatus, productsError, expenses, sales, activeProducts, fixedExpenses, lowStockProducts,
+    loadProducts, resetProducts, saveProduct, deleteProduct, addStock,
+    saveExpense, deleteExpense, registerSale, deleteSale,
   }
 })
